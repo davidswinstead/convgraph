@@ -151,11 +151,11 @@
                 <div style="display: flex; gap: 20px;">
                     <label style="cursor: pointer; font-size: 0.9rem;">
                         <input type="radio" name="liftBase" value="1" checked style="margin-right: 5px;" onchange="applyConfiguration()">
-                        Series 1 as base
+                        <span id="series1BaseLabel">Series 1</span> as base
                     </label>
                     <label style="cursor: pointer; font-size: 0.9rem;">
                         <input type="radio" name="liftBase" value="2" style="margin-right: 5px;" onchange="applyConfiguration()">
-                        Series 2 as base
+                        <span id="series2BaseLabel">Series 2</span> as base
                     </label>
                 </div>
             </div>
@@ -322,7 +322,7 @@ function setupConfiguration() {
     const savedConfig = localStorage.getItem('seriesConfig');
     let config = savedConfig ? JSON.parse(savedConfig) : null;
     
-    // Load lift base preference
+    // Load lift base preference - default to '1' (Control/Series 1)
     const savedLiftBase = localStorage.getItem('liftBase') || '1';
     const liftBaseRadios = document.getElementsByName('liftBase');
     liftBaseRadios.forEach(radio => {
@@ -632,6 +632,10 @@ function renderCharts(config) {
     // Render lift chart (percentage difference) - show for both ratios AND direct columns
     if (series1Data && series2Data) {
         document.getElementById('liftSection').style.display = 'block';
+        
+        // Update baseline labels with actual series names
+        document.getElementById('series1BaseLabel').textContent = config.series1.label || 'Series 1';
+        document.getElementById('series2BaseLabel').textContent = config.series2.label || 'Series 2';
             
             // Determine which series is the base
             const liftBase = localStorage.getItem('liftBase') || '1';
