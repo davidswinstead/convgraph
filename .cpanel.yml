@@ -9,3 +9,6 @@ deployment:
 
     # Sync workspace to the deployment path (keeps target in lockstep)
     - /usr/bin/rsync -av --delete --exclude ".git" --exclude "node_modules" --exclude ".cpanel.yml" ./ "$DEPLOYPATH"
+    
+    # Set permissions to 755 for directory and all files
+    - /usr/bin/chmod -R 755 "$DEPLOYPATH"
