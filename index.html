@@ -338,10 +338,10 @@ function setupConfiguration() {
                 series2: { type: 'column', column: 1, label: 'Variant', color: '#007bff' }
             };
         } else if (columnCount === 4) {
-            // Default: col5/col3 (control) and col4/col2 (variant)
+            // Default: col4/col2 (control) and col5/col3 (variant)
             config = {
-                series1: { type: 'ratio', numerator: 3, denominator: 1, label: 'Control', color: '#6c757d' },
-                series2: { type: 'ratio', numerator: 2, denominator: 0, label: 'Variant', color: '#007bff' }
+                series1: { type: 'ratio', numerator: 2, denominator: 0, label: 'Control', color: '#6c757d' },
+                series2: { type: 'ratio', numerator: 3, denominator: 1, label: 'Variant', color: '#007bff' }
             };
         } else {
             // No defaults for other counts
@@ -625,103 +625,107 @@ function renderCharts(config) {
                 }
             }
         });
+    } else {
+        document.getElementById('cumulativeSection').style.display = 'none';
+    }
 
-        // Render lift chart (percentage difference)
+    // Render lift chart (percentage difference) - show for both ratios AND direct columns
+    if (series1Data && series2Data) {
         document.getElementById('liftSection').style.display = 'block';
-        
-        // Determine which series is the base
-        const liftBase = localStorage.getItem('liftBase') || '1';
-        const baseData = liftBase === '1' ? series1Data : series2Data;
-        const compareData = liftBase === '1' ? series2Data : series1Data;
-        const baseLabel = liftBase === '1' ? (config.series1.label || 'Series 1') : (config.series2.label || 'Series 2');
-        const compareLabel = liftBase === '1' ? (config.series2.label || 'Series 2') : (config.series1.label || 'Series 1');
-        
-        // Update title and description
-        document.getElementById('liftTitle').textContent = `Relative Lift % (${compareLabel} vs ${baseLabel})`;
-        document.getElementById('liftDescription').textContent = `Shows the percentage difference of ${compareLabel} relative to ${baseLabel}. If the shaded 95% confidence region is entirely above/below 0%, the difference is statistically significant.`;
-        
-        const liftData = [];
-        const liftUpper = [];
-        const liftLower = [];
-        const Z = 1.96; // 95% confidence
-        
-        baseData.forEach((baseVal, i) => {
-            const compareVal = compareData[i];
-            if (baseVal !== 0) {
-                const lift = ((compareVal - baseVal) / baseVal) * 100;
-                // Simple standard error approximation
-                const se = Math.abs(lift) * 0.15; // Rough approximation
-                const moe = Z * se;
-                
-                liftData.push(lift.toFixed(2));
-                liftUpper.push((lift + moe).toFixed(2));
-                liftLower.push((lift - moe).toFixed(2));
-            } else {
-                liftData.push(0);
-                liftUpper.push(0);
-                liftLower.push(0);
-            }
-        });
-        
-        liftChart = new Chart(document.getElementById('liftChart'), {
-            type: 'line',
-            data: {
-                labels: parsedData.labels,
-                datasets: [
-                    {
-                        label: 'Lift %',
-                        data: liftData,
-                        borderColor: '#007bff',
-                        borderWidth: 3,
-                        fill: false,
-                        z: 10
-                    },
-                    {
-                        label: 'Upper CI',
-                        data: liftUpper,
-                        fill: '+1',
-                        backgroundColor: 'rgba(0, 123, 255, 0.1)',
-                        borderWidth: 0,
-                        pointRadius: 0
-                    },
-                    {
-                        label: 'Lower CI',
-                        data: liftLower,
-                        fill: false,
-                        borderWidth: 0,
-                        pointRadius: 0
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                interaction: {
-                    mode: 'index',
-                    intersect: false
+            
+            // Determine which series is the base
+            const liftBase = localStorage.getItem('liftBase') || '1';
+            const baseData = liftBase === '1' ? series1Data : series2Data;
+            const compareData = liftBase === '1' ? series2Data : series1Data;
+            const baseLabel = liftBase === '1' ? (config.series1.label || 'Series 1') : (config.series2.label || 'Series 2');
+            const compareLabel = liftBase === '1' ? (config.series2.label || 'Series 2') : (config.series1.label || 'Series 1');
+            
+            // Update title and description
+            document.getElementById('liftTitle').textContent = `Relative Lift % (${compareLabel} vs ${baseLabel})`;
+            document.getElementById('liftDescription').textContent = `Shows the percentage difference of ${compareLabel} relative to ${baseLabel}. If the shaded 95% confidence region is entirely above/below 0%, the difference is statistically significant.`;
+            
+            const liftData = [];
+            const liftUpper = [];
+            const liftLower = [];
+            const Z = 1.96; // 95% confidence
+            
+            baseData.forEach((baseVal, i) => {
+                const compareVal = compareData[i];
+                if (baseVal !== 0) {
+                    const lift = ((compareVal - baseVal) / baseVal) * 100;
+                    // Simple standard error approximation
+                    const se = Math.abs(lift) * 0.15; // Rough approximation
+                    const moe = Z * se;
+                    
+                    liftData.push(lift.toFixed(2));
+                    liftUpper.push((lift + moe).toFixed(2));
+                    liftLower.push((lift - moe).toFixed(2));
+                } else {
+                    liftData.push(0);
+                    liftUpper.push(0);
+                    liftLower.push(0);
+                }
+            });
+            
+            liftChart = new Chart(document.getElementById('liftChart'), {
+                type: 'line',
+                data: {
+                    labels: parsedData.labels,
+                    datasets: [
+                        {
+                            label: 'Lift %',
+                            data: liftData,
+                            borderColor: '#007bff',
+                            borderWidth: 3,
+                            fill: false,
+                            z: 10
+                        },
+                        {
+                            label: 'Upper CI',
+                            data: liftUpper,
+                            fill: '+1',
+                            backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                            borderWidth: 0,
+                            pointRadius: 0
+                        },
+                        {
+                            label: 'Lower CI',
+                            data: liftLower,
+                            fill: false,
+                            borderWidth: 0,
+                            pointRadius: 0
+                        }
+                    ]
                 },
-                scales: {
-                    y: {
-                        grid: {
-                            color: (c) => c.tick.value === 0 ? '#dc3545' : '#e9ecef'
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    scales: {
+                        y: {
+                            grid: {
+                                color: (c) => c.tick.value === 0 ? '#dc3545' : '#e9ecef'
+                            }
+                        },
+                        x: {
+                            grid: { display: false }
                         }
                     },
-                    x: {
-                        grid: { display: false }
-                    }
-                },
-                plugins: {
-                    legend: {
-                        labels: {
-                            filter: (item) => !['Upper CI', 'Lower CI'].includes(item.text)
+                    plugins: {
+                        legend: {
+                            labels: {
+                                filter: (item) => !['Upper CI', 'Lower CI'].includes(item.text)
+                            }
                         }
                     }
                 }
-            }
-        });
-    } else {
-        document.getElementById('liftSection').style.display = 'none';
-    }
+            });
+        } else {
+            document.getElementById('liftSection').style.display = 'none';
+        }
     
     // Render cumulative lift chart only if both series are ratios
     if (series1Data && series2Data && config.series1.type === 'ratio' && config.series2.type === 'ratio') {
