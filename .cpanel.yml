@@ -1,0 +1,11 @@
+---
+deployment:
+  tasks:
+    # Set your deployment target; adjust the folder name if needed
+    - export DEPLOYPATH=/home/a2bremov/davidswinstead.com/misc/convgraph
+    
+    # Create the target if it does not exist
+    - mkdir -p "$DEPLOYPATH"
+
+    # Sync workspace to the deployment path (keeps target in lockstep)
+    - /usr/bin/rsync -av --delete --exclude ".git" --exclude "node_modules" --exclude ".cpanel.yml" ./ "$DEPLOYPATH"
