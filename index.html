@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AB Test Analyzer | Secure & Local</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root { --primary: #007bff; --success: #28a745; --  : #dc3545; --bg: #f8f9fa; }
+        body { font-family: -apple-system, system-ui, sans-serif; margin: 2rem; background: var(--bg); color: #212529; }
+        
+        /* Privacy Banner */
+        .privacy-banner { 
+            background: #e7f3ff; border: 1px solid #b6d4fe; padding: 12px; 
+            border-radius: 8px; margin-bottom: 2rem; display: flex; align-items: center; gap: 10px;
+        }
+        .privacy-banner svg { fill: #084298; flex-shrink: 0; }
+        .privacy-text { color: #084298; font-size: 0.9rem; margin: 0; }
+
+        .container { max-width: 1100px; margin: auto; background: white; padding: 2.5rem; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+        textarea { width: 100%; height: 175px; margin-bottom: 1rem; padding: 12px; border: 1px solid #dee2e6; border-radius: 6px; font-family: monospace; font-size: 13px; box-sizing: border-box; }
+        
+        .controls { display: flex; gap: 10px; margin-bottom: 2rem; }
+        button { border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-weight: 600; transition: filter 0.2s; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-secondary { background: #e2e6ea; color: #333; }
+        button:hover { filter: brightness(90%); }
+
+        .chart-section { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid #eee; }
+        .chart-container { position: relative; height: 380px; }
+        h2 { font-size: 1.4rem; margin-bottom: 0.5rem; color: #333; }
+        .explanation { font-size: 0.85rem; color: #6c757d; margin-bottom: 1rem; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="privacy-banner">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
+        <p class="privacy-text">
+            <strong>Confidentiality Note:</strong> All data processing happens 100% locally in your browser. 
+            No data is uploaded to a server or sent externally.
+        </p>
+    </div>
+
+    <h1>A/B Test Performance Analyzer</h1>
+    <p class="explanation">Paste tab-separated data (Date, Visits C, Visits V, Conv C, Conv V). State is saved in your browser's local storage.</p>
+    
+    <textarea id="dataInput" placeholder="2025-12-09	2474	2547	203	222..."></textarea>
+    
+    <div class="controls">
+        <button class="btn-primary" onclick="processData()">Analyze Data</button>
+        <button class="btn-secondary" onclick="clearData()">Clear Storage</button>
+    </div>
+
+    <div class="chart-section">
+        <h2>Relative Lift % (Difference between Variants)</h2>
+        <p class="explanation">This isolated view makes significance clear: If the shaded 95% confidence region is entirely above the red 0% line, the variant is a statistical winner.</p>
+        <div class="chart-container">
+            <canvas id="liftChart"></canvas>
+        </div>
+    </div>
+
+    <div class="chart-section">
+        <h2>Cumulative Conversion Rate (%)</h2>
+        <div class="chart-container">
+            <canvas id="cumulativeChart"></canvas>
+        </div>
+    </div>
+
+    <div class="chart-section">
+        <h2>Daily Conversion Rate (%)</h2>
+        <div class="chart-container">
+            <canvas id="dailyChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<script>
+let liftChart, cumChart, dayChart;
+
+window.onload = function() {
+    const savedData = localStorage.getItem('abTestData');
+    if (savedData) {
+        document.getElementById('dataInput').value = savedData;
+        processData();
+    }
+};
+
+function clearData() {
+    if(confirm("Clear local storage? This will reset the page.")) {
+        localStorage.removeItem('abTestData');
+        document.getElementById('dataInput').value = '';
+        location.reload();
+    }
+}
+
+function processData() {
+    const input = document.getElementById('dataInput').value.trim();
+    if (!input) return;
+
+    localStorage.setItem('abTestData', input);
+
+    const lines = input.split('\n');
+    const labels = [], dCR_C = [], dCR_V = [], cCR_C = [], cCR_V = [];
+    const liftVal = [], liftUpper = [], liftLower = [];
+
+    let sVC = 0, sVV = 0, sCC = 0, sCV = 0;
+    const Z = 1.96; 
+
+    lines.forEach(line => {
+        const cols = line.split('\t');
+        if (cols.length < 5) return;
+
+        const date = cols[0];
+        const vC = parseInt(cols[1]), vV = parseInt(cols[2]), cC = parseInt(cols[3]), cV = parseInt(cols[4]);
+        
+        labels.push(date);
+        dCR_C.push(((cC/vC)*100).toFixed(2));
+        dCR_V.push(((cV/vV)*100).toFixed(2));
+
+        sVC += vC; sVV += vV; sCC += cC; sCV += cV;
+        const pC = sCC / sVC;
+        const pV = sCV / sVV;
+        
+        cCR_C.push((pC * 100).toFixed(3));
+        cCR_V.push((pV * 100).toFixed(3));
+
+        const lift = (pV - pC) / pC;
+        const seDiff = Math.sqrt((pC*(1-pC)/sVC) + (pV*(1-pV)/sVV));
+        const moeLift = (Z * seDiff) / pC;
+
+        liftVal.push((lift * 100).toFixed(2));
+        liftUpper.push(((lift + moeLift) * 100).toFixed(2));
+        liftLower.push(((lift - moeLift) * 100).toFixed(2));
+    });
+
+    renderAll(labels, dCR_C, dCR_V, cCR_C, cCR_V, liftVal, liftUpper, liftLower);
+}
+
+function renderAll(labels, dC, dV, cC, cV, lV, lU, lL) {
+    if (liftChart) liftChart.destroy();
+    if (cumChart) cumChart.destroy();
+    if (dayChart) dayChart.destroy();
+
+    const commonOpts = { responsive: true, maintainAspectRatio: false };
+
+    liftChart = new Chart(document.getElementById('liftChart'), {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                { label: 'Lift %', data: lV, borderColor: '#007bff', borderWidth: 3, fill: false, z: 10 },
+                { label: 'Upper', data: lU, fill: '+1', backgroundColor: 'rgba(0, 123, 255, 0.1)', borderWidth: 0, pointRadius: 0 },
+                { label: 'Lower', data: lL, fill: false, borderWidth: 0, pointRadius: 0 }
+            ]
+        },
+        options: {
+            ...commonOpts,
+            scales: { y: { grid: { color: c => c.tick.value === 0 ? '#dc3545' : '#e9ecef' } } },
+            plugins: { legend: { labels: { filter: i => !['Upper', 'Lower'].includes(i.text) } } }
+        }
+    });
+
+    cumChart = new Chart(document.getElementById('cumulativeChart'), {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                { label: 'Control', data: cC, borderColor: '#6c757d', tension: 0.1 },
+                { label: 'Variant', data: cV, borderColor: '#007bff', tension: 0.1 }
+            ]
+        },
+        options: commonOpts
+    });
+
+    dayChart = new Chart(document.getElementById('dailyChart'), {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                { label: 'Control (Daily)', data: dC, borderColor: '#adb5bd', borderDash: [5,5] },
+                { label: 'Variant (Daily)', data: dV, borderColor: '#28a745', borderDash: [5,5] }
+            ]
+        },
+        options: commonOpts
+    });
+}
+</script>
+</body>
+</html>
